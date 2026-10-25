@@ -1,0 +1,16 @@
+:root {
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', Arial, sans-serif;
+  color: #f5f5f5;
+  background: #000;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-weight: 500;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 0; min-height: 100vh; overflow: hidden; }
+button { color: inherit; font: inherit; border: 0; cursor: pointer; }
+button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+#root { width: 100%; min-width: 0; height: 100dvh; }
