@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, CircleArrowDown, ChevronDown, ChevronRight, Globe2, Home, Music2, Search, Smartphone, UsersRound, X } from 'lucide-react'
 import { tracks } from './data/musicData'
+import TrackArtwork from './components/TrackArtwork'
+import { loginDemoAccount, registerDemoAccount, validateDemoEmail, validateDemoPassword } from './auth/demoAuth'
 import './PublicExperience.css'
 
 const artists = [...new Set(tracks.flatMap((track) => track.artist.split(',').map((name) => name.trim())))].slice(0, 8)
@@ -11,12 +13,10 @@ function SpotifyMark() {
 }
 
 function Artwork({ track }) {
-  return track.artwork
-    ? <img className="public-cover" src={track.artwork} alt="" />
-    : <span className="public-art-placeholder" aria-hidden="true"><Music2 size={42}/></span>
+  return <TrackArtwork track={track} className="public-cover" placeholderClassName="public-art-placeholder"/>
 }
 
-function PublicHeader({ navigate, search, setSearch, route, enterPlayerDemo }) {
+function PublicHeader({ navigate, search, setSearch, route, enterPlayerDemo, demoSession, onLogout }) {
   const [premiumOpen, setPremiumOpen] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState('')
   const [profileOpen, setProfileOpen] = useState(false)
@@ -67,18 +67,22 @@ function PublicHeader({ navigate, search, setSearch, route, enterPlayerDemo }) {
       <button onClick={() => navigate('support')}>Support</button>
       <button onClick={() => navigate('download')}>Download</button>
       <span className="public-divider" aria-hidden="true"/>
-      {isAccount ? <div className="public-profile-wrap" ref={profileRef}>
-        <button className="public-profile-trigger" aria-expanded={profileOpen} aria-controls="public-profile-menu" onClick={() => { setProfileOpen((open) => !open); setPremiumOpen(false) }}><img src="/artwork/profile-user.png" alt=""/><span>Profile</span><ChevronDown size={18}/></button>
-        {profileOpen && <div className="public-profile-menu" id="public-profile-menu" aria-label="Profile menu">
-          <button onClick={() => setProfileOpen(false)}>Account dashboard <span>Demo</span></button>
-          <button onClick={enterPlayerDemo}>Open player demo <ChevronRight size={17}/></button>
-          <button onClick={() => navigate('public')}>Back to public home <ChevronRight size={17}/></button>
-        </div>}
-      </div> : <>
+      {!isAccount && !demoSession && <>
         <button className="public-install" onClick={() => navigate('download')}><CircleArrowDown size={20}/><span>Install App</span></button>
         {route !== 'signup' && <button className="public-signup-link" onClick={() => navigate('signup')}>Sign up</button>}
         {route !== 'login' && <button className="public-login-button" onClick={() => navigate('login')}>Log in</button>}
       </>}
+      {(isAccount || demoSession) && <div className="public-profile-wrap" ref={profileRef}>
+        <button className="public-profile-trigger" aria-expanded={profileOpen} aria-controls="public-profile-menu" onClick={() => { setProfileOpen((open) => !open); setPremiumOpen(false) }}><img src="/artwork/profile-user.png" alt=""/><span>{demoSession ? 'Demo account' : 'Profile'}</span><ChevronDown size={18}/></button>
+        {profileOpen && <div className="public-profile-menu" id="public-profile-menu" aria-label="Profile menu">
+          {demoSession && <p className="public-session-email">{demoSession.email}</p>}
+          <button onClick={() => { setProfileOpen(false); navigate('account') }}>Account dashboard <span>Demo</span></button>
+          <button onClick={enterPlayerDemo}>Open player demo <ChevronRight size={17}/></button>
+          {demoSession
+            ? <button onClick={onLogout}>Log out</button>
+            : <button onClick={() => navigate('public')}>Back to public home <ChevronRight size={17}/></button>}
+        </div>}
+      </div>}
     </nav>
   </header>
 }
@@ -205,38 +209,50 @@ function ProviderIcon({ provider }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.37 12.56c.02 2.17 1.9 2.9 1.92 2.91-.02.05-.3 1.03-.98 2.04-.59.88-1.2 1.76-2.16 1.78-.94.02-1.24-.57-2.31-.57-1.06 0-1.4.55-2.29.59-.92.03-1.62-.95-2.22-1.83-1.22-1.77-2.15-5-.9-7.18.62-1.08 1.73-1.76 2.94-1.78.92-.02 1.79.62 2.35.62.55 0 1.59-.77 2.68-.66.46.02 1.75.19 2.58 1.44-.07.05-1.54.9-1.61 2.64ZM14.62 6.7c.48-.58.8-1.39.71-2.2-.69.03-1.52.46-2.01 1.03-.44.51-.83 1.33-.72 2.12.77.06 1.55-.39 2.02-.95Z"/></svg>
 }
 
-function AuthPage({ route, navigate }) {
+function AuthPage({ route, navigate, enterPlayerDemo }) {
   const isLogin = route === 'login'
   const [email, setEmail] = useState('')
-  const [error, setError] = useState('')
-  const [demoMessage, setDemoMessage] = useState('')
+  const [password, setPassword] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [formError, setFormError] = useState('')
   const [providerMessage, setProviderMessage] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const providers = isLogin
     ? [['phone', 'Continue with phone number'], ['google', 'Continue with Google'], ['facebook', 'Continue with Facebook'], ['apple', 'Continue with Apple']]
     : [['phone', 'Sign up with phone number'], ['google', 'Sign up with Google'], ['apple', 'Sign up with Apple']]
 
-  const submitEmail = (event) => {
+  const submitEmail = async (event) => {
     event.preventDefault()
     const trimmedEmail = email.trim()
     setEmail(trimmedEmail)
     setProviderMessage('')
-    setDemoMessage('')
-    if (!trimmedEmail) {
-      setError('Enter your email address.')
-      return
+    setFormError('')
+    const validEmail = validateDemoEmail(trimmedEmail)
+    const nextEmailError = trimmedEmail ? (validEmail ? '' : 'Enter a valid email address.') : 'Enter your email address.'
+    const nextPasswordError = isLogin && !password ? 'Enter your password.' : (!isLogin ? validateDemoPassword(password) : '')
+    setEmailError(nextEmailError)
+    setPasswordError(nextPasswordError)
+    if (nextEmailError || nextPasswordError || submitting) return
+
+    setSubmitting(true)
+    try {
+      const session = isLogin
+        ? await loginDemoAccount(validEmail, password)
+        : await registerDemoAccount(validEmail, password)
+      enterPlayerDemo(session)
+    } catch (error) {
+      if (error.code === 'duplicate-email') setEmailError(error.message)
+      else if (error.code === 'invalid-email') setEmailError(error.message)
+      else if (error.code === 'invalid-password' || error.code === 'invalid-credentials') setPasswordError(error.message)
+      else setFormError(error.message || 'Demo authentication could not be completed.')
+    } finally {
+      setSubmitting(false)
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setError('Enter a valid email address.')
-      return
-    }
-    setError('')
-    setDemoMessage(`Demo only: ${isLogin ? 'sign-in' : 'sign-up'} is not connected. Your email was not saved, and no account was created.`)
   }
 
   const explainProvider = (provider) => {
     const providerName = provider === 'phone' ? 'Phone' : provider[0].toUpperCase() + provider.slice(1)
-    setError('')
-    setDemoMessage('')
     setProviderMessage(`${providerName} sign-in is not configured in this frontend demo.`)
   }
 
@@ -244,27 +260,35 @@ function AuthPage({ route, navigate }) {
     <section className="auth-card" aria-labelledby="auth-title">
       <button className="auth-home" aria-label="Return to Spotify home" onClick={() => navigate('public')}><SpotifyMark/></button>
       <h1 id="auth-title">{isLogin ? 'Welcome back' : <>Sign up to<br/>start listening</>}</h1>
-      <form className="auth-form" onSubmit={submitEmail} noValidate>
-        <label htmlFor="auth-email">{isLogin ? 'Email' : 'Email address'}</label>
-        <input id="auth-email" type="email" autoComplete="email" placeholder={isLogin ? '' : 'name@domain.com'} value={email} onChange={(event) => { setEmail(event.target.value); setError(''); setDemoMessage(''); setProviderMessage('') }} aria-invalid={Boolean(error)} aria-describedby={error ? 'auth-email-error' : undefined}/>
-        {error && <p className="auth-error" id="auth-email-error" role="alert">{error}</p>}
-        <button className="auth-submit" type="submit">{isLogin ? 'Continue' : 'Next'}</button>
+      <form className="auth-form" onSubmit={submitEmail} noValidate aria-busy={submitting}>
+        <div className="auth-field">
+          <label htmlFor="auth-email">{isLogin ? 'Email' : 'Email address'}</label>
+          <input id="auth-email" type="email" autoComplete="email" placeholder={isLogin ? '' : 'name@domain.com'} value={email} onChange={(event) => { setEmail(event.target.value); setEmailError(''); setFormError(''); setProviderMessage('') }} aria-invalid={Boolean(emailError)} aria-describedby={emailError ? 'auth-email-error' : undefined}/>
+          {emailError && <p className="auth-error" id="auth-email-error" role="alert">{emailError}</p>}
+        </div>
+        <div className="auth-field">
+          <label htmlFor="auth-password">Password</label>
+          <input id="auth-password" type="password" autoComplete={isLogin ? 'current-password' : 'new-password'} value={password} onChange={(event) => { setPassword(event.target.value); setPasswordError(''); setFormError(''); setProviderMessage('') }} aria-invalid={Boolean(passwordError)} aria-describedby={passwordError ? 'auth-password-error' : undefined}/>
+          {passwordError && <p className="auth-error" id="auth-password-error" role="alert">{passwordError}</p>}
+        </div>
+        {formError && <p className="auth-error auth-form-error" id="auth-form-error" role="alert">{formError}</p>}
+        <p className="auth-security-note">Local frontend demo. Passwords are hashed in this browser; never use real credentials.</p>
+        <button className="auth-submit" type="submit" disabled={submitting}>{submitting ? 'Please wait…' : isLogin ? 'Log in' : 'Create account'}</button>
       </form>
       <div className="auth-divider"><span>or</span></div>
-      <div className="auth-providers">{providers.map(([provider, label]) => <button className="auth-provider" key={provider} onClick={() => explainProvider(provider)}><span className="auth-provider-icon"><ProviderIcon provider={provider}/></span><span>{label}</span></button>)}</div>
-      {demoMessage && <p className="auth-demo-message" role="status">{demoMessage}</p>}
+      <div className="auth-providers">{providers.map(([provider, label]) => <button className="auth-provider" type="button" key={provider} disabled={submitting} onClick={() => explainProvider(provider)}><span className="auth-provider-icon"><ProviderIcon provider={provider}/></span><span>{label}</span></button>)}</div>
       {providerMessage && <p className="auth-provider-message" role="status">{providerMessage}</p>}
     </section>
     <footer className="auth-footer">{isLogin ? <>Don't have an account? <button onClick={() => navigate('signup')}>Sign up</button></> : <>Already have an account? <button onClick={() => navigate('login')}>Log in</button></>}</footer>
   </main>
 }
 
-export default function PublicExperience({ route, navigate, enterPlayerDemo }) {
+export default function PublicExperience({ route, navigate, enterPlayerDemo, demoSession, onLogout }) {
   const [search, setSearch] = useState('')
-  if (route === 'login' || route === 'signup') return <AuthPage route={route} navigate={navigate}/>
+  if (route === 'login' || route === 'signup') return <AuthPage route={route} navigate={navigate} enterPlayerDemo={enterPlayerDemo}/>
   const isAccount = route === 'account'
   return <div className={`public-app ${isAccount ? 'account-public-app' : ''}`}>
-    <PublicHeader key={route} navigate={navigate} search={search} setSearch={setSearch} route={route} enterPlayerDemo={enterPlayerDemo}/>
+    <PublicHeader key={route} navigate={navigate} search={search} setSearch={setSearch} route={route} enterPlayerDemo={enterPlayerDemo} demoSession={demoSession} onLogout={onLogout}/>
     {route === 'public' ? <LandingPage navigate={navigate} search={search}/> : isAccount ? <AccountDashboard navigate={navigate}/> : <DestinationPage route={route} navigate={navigate} enterPlayerDemo={enterPlayerDemo}/>}
   </div>
 }

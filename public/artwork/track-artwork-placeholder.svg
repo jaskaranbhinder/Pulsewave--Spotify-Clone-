@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Album artwork unavailable">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#263b32"/>
+      <stop offset="1" stop-color="#121816"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.25" cy="0.2" r="0.85">
+      <stop offset="0" stop-color="#1ed760" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#1ed760" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#background)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <circle cx="256" cy="256" r="138" fill="#ffffff" fill-opacity=".08"/>
+  <path d="M292 146v170.3a55 55 0 1 1-28-48V190l140-31v135.3a55 55 0 1 1-28-48V125z" fill="#e9f4ed"/>
+</svg>

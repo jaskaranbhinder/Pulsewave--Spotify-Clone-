@@ -7,6 +7,8 @@ import {
 } from 'lucide-react'
 import { trackById as sampleTrackById, playlists } from './data/musicData'
 import { usePlayer } from './player/usePlayer'
+import TrackArtwork from './components/TrackArtwork'
+import { logoutDemoAccount, readDemoSession } from './auth/demoAuth'
 import PublicExperience from './PublicExperience'
 import './App.css'
 
@@ -47,9 +49,7 @@ function SpotifyMark() {
 }
 
 function Artwork({ track, className = '' }) {
-  return track?.artwork
-    ? <img className={className} src={track.artwork} alt=""/>
-    : <span className={`track-art-placeholder ${className}`} aria-hidden="true"><Music2 size={22}/></span>
+  return <TrackArtwork track={track} className={className} placeholderClassName={`track-art-placeholder ${className}`}/>
 }
 
 function TrackTable({ items, onPlay, likedIds, toggleLike, addToQueue }) {
@@ -125,6 +125,7 @@ function App() {
   const folderInputRef = useRef(null)
   const narrowLayoutRef = useRef(window.innerWidth <= 850)
   const [publicRoute, setPublicRoute] = useState(readPublicRoute)
+  const [demoSession, setDemoSession] = useState(readDemoSession)
   const [expanded, setExpanded] = useState(() => !['vibe', 'liked', 'local'].includes(readPlayerRoute()))
   const [rightView, setRightView] = useState(() => readPlayerRoute() === 'liked' || window.innerWidth <= 850 ? 'none' : 'now')
   const [accountOpen, setAccountOpen] = useState(false)
@@ -147,7 +148,13 @@ function App() {
   }, [])
   useEffect(() => { const pop = () => { const route = readPublicRoute(); setPublicRoute(route); if (route === null) { const next = readPlayerRoute() || 'home'; setPage(next); setExpanded(next === 'home'); setRightView(next === 'liked' || window.innerWidth <= 850 ? 'none' : 'now') } }; window.addEventListener('popstate', pop); return () => window.removeEventListener('popstate', pop) }, [])
   const openPublicPage = (route) => { history.pushState({}, '', `${location.pathname}?view=${route}`); setPublicRoute(route) }
-  const enterPlayerDemo = () => { history.pushState({}, '', `${location.pathname}?view=player`); setPublicRoute(null); setPage('home'); setExpanded(true); setRightView(window.innerWidth <= 850 ? 'none' : 'now'); setSearch(''); setSearchOpen(false) }
+  const enterPlayerDemo = (session = null) => { if (session?.email) setDemoSession(session); history.pushState({}, '', `${location.pathname}?view=player`); setPublicRoute(null); setPage('home'); setExpanded(true); setRightView(window.innerWidth <= 850 ? 'none' : 'now'); setSearch(''); setSearchOpen(false) }
+  const logout = () => {
+    try { logoutDemoAccount() } catch {}
+    setDemoSession(null)
+    history.pushState({}, '', `${location.pathname}?view=public`)
+    setPublicRoute('public')
+  }
   const go = (next) => { history.pushState({}, '', `${location.pathname}?view=player${next === 'home' ? '' : `#${next}`}`); navigate(next) }
   const startImport = async () => { const handled = await player.chooseMusicFolder(); setFolderFallback(!handled); if (!handled) folderInputRef.current?.click() }
   const onFallbackFiles = (event) => { if (event.target.files?.length) setFolderFallback(false); player.importFileList(event.target.files); event.target.value = '' }
@@ -155,7 +162,7 @@ function App() {
   const searchMatches = search ? player.tracks.filter((track) => `${track.title} ${track.artist} ${track.album} ${track.filename || ''}`.toLowerCase().includes(search.toLowerCase())).slice(0, 5) : []
   const libraryItems = [...library, ...(player.localTracks.length ? [['Local Music', `${player.localTracks.length} imported tracks`, null, 'local']] : [])]
 
-  if (publicRoute) return <PublicExperience route={publicRoute} navigate={openPublicPage} enterPlayerDemo={enterPlayerDemo}/>
+  if (publicRoute) return <PublicExperience route={publicRoute} navigate={openPublicPage} enterPlayerDemo={enterPlayerDemo} demoSession={demoSession} onLogout={logout}/>
 
   return <div className="app-shell">
     <input ref={folderInputRef} className="folder-input" type="file" accept="audio/*,.mp3,.m4a,.aac,.flac,.ogg,.oga,.opus,.wav,.webm,.aif,.aiff,.wma" multiple webkitdirectory="" onChange={onFallbackFiles}/>
@@ -170,7 +177,7 @@ function App() {
           {searchOpen && search && <div className="search-dropdown">{searchMatches.length ? searchMatches.map((track) => <button key={track.id} onClick={() => { player.playTrack(track.id, player.tracks.map((item) => item.id)); setSearch(''); setSearchOpen(false) }}><Artwork track={track}/><span><b>{track.title}</b><small>{track.artist || (track.source === 'local' ? 'Local music' : '')}</small></span><Play size={17}/></button>) : <p>No results found</p>}</div>}
         </div>
       </div>
-      <div className="top-actions"><button className="install"><CircleArrowDown size={20}/>Install App</button><button className="icon-button" aria-label="Notifications"><Bell size={22}/></button><button className="icon-button friends" aria-label="Friend activity"><UsersIcon/></button><button className="profile" onClick={() => setAccountOpen(!accountOpen)} aria-label="Account"><img src="/artwork/profile-user.png" alt=""/></button>{accountOpen && <div className="account-menu">{['Account','Profile','Recents','Support','Download','Settings','Log out'].map((item) => <button key={item} onClick={() => { if (item === 'Account') openPublicPage('account'); setAccountOpen(false) }}>{item}</button>)}<div className="updates"><b>Your Updates</b><small>Just days away: HUSTINDER live<br/>in Brampton on Sat, Aug 22 · 10w</small></div></div>}</div>
+      <div className="top-actions"><button className="install"><CircleArrowDown size={20}/>Install App</button><button className="icon-button" aria-label="Notifications"><Bell size={22}/></button><button className="icon-button friends" aria-label="Friend activity"><UsersIcon/></button><button className="profile" onClick={() => setAccountOpen(!accountOpen)} aria-label="Account"><img src="/artwork/profile-user.png" alt=""/></button>{accountOpen && <div className="account-menu">{demoSession && <p className="account-session-label">Signed in as {demoSession.email}</p>}{['Public Home','Account','Profile','Recents','Support','Download','Settings',demoSession ? 'Log out' : 'Log in'].map((item) => <button key={item} onClick={() => { if (item === 'Public Home') openPublicPage('public'); else if (item === 'Account') openPublicPage('account'); else if (item === 'Log in') openPublicPage('login'); else if (item === 'Log out') logout(); setAccountOpen(false) }}>{item}</button>)}<div className="updates"><b>Your Updates</b><small>Just days away: HUSTINDER live<br/>in Brampton on Sat, Aug 22 · 10w</small></div></div>}</div>
     </header>
     <div className={`workspace ${expanded && page === 'home' ? '' : 'compact'} ${rightView === 'none' ? 'right-hidden' : ''}`}>
       <LibraryPanel expanded={expanded} setExpanded={setExpanded} page={page} go={go} libraryItems={libraryItems} player={player} onImport={startImport} folderFallback={folderFallback}/>

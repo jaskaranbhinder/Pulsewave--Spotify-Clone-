@@ -19,6 +19,7 @@
 .account-menu { position: absolute; z-index: 10; right: 0; top: 58px; width: 390px; background: #282828; border-radius: 8px; padding: 8px 0; box-shadow: 0 8px 30px #0009; }
 .account-menu button { display: block; text-align: left; width: 100%; padding: 11px 16px; color: #eee; }
 .account-menu button:hover { background: #3e3e3e; }
+.account-session-label { overflow: hidden; margin: 0; padding: 11px 16px; color: #b3b3b3; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .updates { border-top: 1px solid #444; margin-top: 8px; padding: 15px 16px; }
 .updates b,.updates small { display: block; }
 .updates small { margin-top: 20px; color: #ccc; line-height: 1.6; }
